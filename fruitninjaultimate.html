@@ -1,0 +1,240 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Fruit Ninja Ultimate</title>
+
+<style>
+body {
+    margin: 0;
+    overflow: hidden;
+    background: #6b4f2c;
+    font-family: Arial, sans-serif;
+    user-select: none;
+    touch-action: none;
+}
+
+/* UI */
+#ui {
+    position: fixed;
+    top: 10px;
+    left: 10px;
+    color: white;
+    font-size: 16px;
+    z-index: 10;
+}
+
+#controls {
+    position: fixed;
+    bottom: 15px;
+    left: 50%;
+    transform: translateX(-50%);
+    z-index: 10;
+}
+
+button {
+    padding: 10px 18px;
+    font-size: 16px;
+    border: none;
+    border-radius: 8px;
+    margin: 0 6px;
+    cursor: pointer;
+}
+
+/* Fruits */
+.fruit, .bomb {
+    position: absolute;
+    width: 70px;
+    height: 70px;
+    border-radius: 50%;
+    text-align: center;
+    line-height: 70px;
+    font-size: 36px;
+}
+
+.fruit {
+    background: radial-gradient(circle, #ffeb3b, #ff9800);
+}
+
+.bomb {
+    background: black;
+}
+
+/* Fruit halves */
+.half {
+    position: absolute;
+    width: 35px;
+    height: 70px;
+    font-size: 36px;
+    overflow: hidden;
+    animation: fall 0.6s forwards;
+}
+
+.left { transform-origin: right center; }
+.right { transform-origin: left center; }
+
+@keyframes fall {
+    to {
+        transform: translateY(120px) rotate(30deg);
+        opacity: 0;
+    }
+}
+
+/* Slash trail */
+.slash {
+    position: absolute;
+    width: 6px;
+    height: 40px;
+    background: rgba(255,255,255,0.8);
+    border-radius: 10px;
+    pointer-events: none;
+    animation: fade 0.3s forwards;
+}
+
+@keyframes fade {
+    to { opacity: 0; }
+}
+</style>
+</head>
+
+<body>
+
+<div id="ui">
+Score: <span id="score">0</span><br>
+High: <span id="high">0</span><br>
+Level: <span id="level">Easy</span><br>
+Time: <span id="time">60</span>
+</div>
+
+<div id="controls">
+<button onclick="togglePause()">⏸ Pause</button>
+<button onclick="restartGame()">🔁 Restart</button>
+</div>
+
+<audio id="cutSound" src="https://cdn.pixabay.com/audio/2022/03/15/audio_2cfd8c6efc.mp3"></audio>
+<audio id="bombSound" src="https://cdn.pixabay.com/audio/2022/03/10/audio_6b8b3ed6b4.mp3"></audio>
+
+<script>
+let score = 0;
+let timeLeft = 60;
+let paused = false;
+let spawnRate = 900;
+let fruits = ["🍎","🍊","🍉","🍌","🍍"];
+let highScore = localStorage.getItem("highScore") || 0;
+
+document.getElementById("high").innerText = highScore;
+
+setInterval(() => {
+    if (!paused) updateTimer();
+}, 1000);
+
+setInterval(() => {
+    if (!paused) spawnItem();
+}, spawnRate);
+
+function updateTimer() {
+    timeLeft--;
+    document.getElementById("time").innerText = timeLeft;
+
+    if (timeLeft === 40) setLevel("Medium", 700);
+    if (timeLeft === 20) setLevel("Hard", 500);
+
+    if (timeLeft <= 0) endGame();
+}
+
+function setLevel(name, rate) {
+    spawnRate = rate;
+    document.getElementById("level").innerText = name;
+}
+
+function spawnItem() {
+    let item = document.createElement("div");
+    let isBomb = Math.random() < 0.2;
+
+    item.className = isBomb ? "bomb" : "fruit";
+    item.innerText = isBomb ? "💣" : fruits[Math.floor(Math.random()*fruits.length)];
+
+    item.style.left = Math.random() * (innerWidth - 80) + "px";
+    item.style.top = innerHeight + "px";
+    document.body.appendChild(item);
+
+    let pos = innerHeight;
+    let speed = Math.random() * 2 + 3;
+
+    let move = setInterval(() => {
+        if (paused) return;
+        pos -= speed * 5;
+        item.style.top = pos + "px";
+        if (pos < -100) {
+            clearInterval(move);
+            item.remove();
+        }
+    }, 20);
+
+    item.addEventListener("pointermove", e => {
+        if (paused) return;
+        slashEffect(e.clientX, e.clientY);
+
+        if (isBomb) {
+            document.getElementById("bombSound").play();
+            restartGame();
+        } else {
+            sliceFruit(item);
+        }
+    });
+}
+
+function sliceFruit(item) {
+    document.getElementById("cutSound").play();
+    score++;
+    document.getElementById("score").innerText = score;
+
+    let rect = item.getBoundingClientRect();
+    let left = document.createElement("div");
+    let right = document.createElement("div");
+
+    left.className = "half left";
+    right.className = "half right";
+
+    left.innerText = right.innerText = item.innerText;
+
+    left.style.left = rect.left + "px";
+    left.style.top = rect.top + "px";
+    right.style.left = rect.left + 35 + "px";
+    right.style.top = rect.top + "px";
+
+    document.body.append(left, right);
+    item.remove();
+
+    setTimeout(() => {
+        left.remove();
+        right.remove();
+    }, 600);
+}
+
+function slashEffect(x, y) {
+    let s = document.createElement("div");
+    s.className = "slash";
+    s.style.left = x + "px";
+    s.style.top = y + "px";
+    document.body.appendChild(s);
+    setTimeout(() => s.remove(), 300);
+}
+
+function togglePause() {
+    paused = !paused;
+}
+
+function restartGame() {
+    if (score > highScore) localStorage.setItem("highScore", score);
+    location.reload();
+}
+
+function endGame() {
+    restartGame();
+}
+</script>
+
+</body>
+</html>
